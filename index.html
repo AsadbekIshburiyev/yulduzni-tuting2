@@ -1,0 +1,343 @@
+
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="google-site-verification" content="XmTkVInWNIfETyMoO_VCBQDzCKw7b5KqrJyUaQDop3g" />
+<title>⭐ Yulduzni tut!</title>
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;background:#10172f;color:white;
+  font-family:Arial,sans-serif;text-align:center
+}
+header{padding:18px;background:#1c2c54}
+h1{color:#ffdc4a;margin:8px}
+.panel{
+  background:#1c294b;padding:18px;margin:14px auto;
+  max-width:800px;width:94%;border-radius:16px
+}
+input{
+  width:min(100%,280px);padding:12px;margin:5px;
+  border:0;border-radius:9px;font-size:16px
+}
+button{
+  border:0;border-radius:10px;padding:12px 16px;
+  margin:5px;background:#ffda48;color:#182347;
+  font-weight:bold;cursor:pointer
+}
+button:disabled{cursor:default}
+.stats{
+  display:flex;justify-content:center;gap:10px;flex-wrap:wrap
+}
+.stat{
+  background:#2a3d69;padding:12px;border-radius:12px;
+  flex:1;min-width:100px
+}
+.stat strong{display:block;font-size:25px;margin-top:7px}
+#game{
+  height:400px;max-width:760px;margin:12px auto 0;
+  position:relative;overflow:hidden;border:3px solid #64c9ff;
+  border-radius:15px;
+  background:radial-gradient(circle at top,#286eaa,#10294c)
+}
+.star{
+  position:absolute;padding:0;margin:0;border:0;
+  background:transparent;font-size:38px;width:52px;height:52px;
+  transform:translate(-50%,-50%);
+  filter:drop-shadow(0 0 8px #ffe56b);
+  animation:appear .15s ease-out
+}
+@keyframes appear{
+  from{scale:.2}to{scale:1}
+}
+#message{color:#ffdf57;min-height:24px}
+table{width:100%;border-collapse:collapse}
+td,th{padding:10px;border-bottom:1px solid #405078}
+.note{color:#c8d5f4;font-size:13px;line-height:1.5}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⭐ YULDUZNI TUT!</h1>
+  <p>Yulduzlarni top, ochko yig‘ va rekord o‘rnat!</p>
+</header>
+
+<section class="panel">
+  <h2>👤 Akkaunt</h2>
+  <input id="username" placeholder="Foydalanuvchi nomi"
+         maxlength="18" autocomplete="username">
+  <br>
+  <input id="password" type="password" placeholder="Parol"
+         minlength="4" autocomplete="current-password">
+  <br>
+  <button id="registerBtn">Ro‘yxatdan o‘tish</button>
+  <button id="loginBtn">Akkauntga kirish</button>
+  <button id="logoutBtn">Chiqish</button>
+  <p id="accountMsg">O‘ynash uchun ro‘yxatdan o‘t yoki akkauntingga kir.</p>
+  <p class="note">Demo versiya: akkauntlar shu brauzerda saqlanadi.
+  Boshqa qurilmada umumiy akkaunt bo‘lishi uchun server kerak.</p>
+</section>
+
+<section class="panel">
+  <div class="stats">
+    <div class="stat">👤 O‘yinchi<strong id="player">Mehmon</strong></div>
+    <div class="stat">⭐ Ochko<strong id="score">0</strong></div>
+    <div class="stat">⏱️ Vaqt<strong id="time">60</strong></div>
+    <div class="stat">✨ Qoldi<strong id="left">100</strong></div>
+  </div>
+
+  <button id="startBtn">🎮 O‘yinni boshlash</button>
+  <p id="message">Akkauntga kir, so‘ng o‘yinni boshlagin!</p>
+  <div id="game"></div>
+</section>
+
+<section class="panel">
+  <h2>🏆 Rekordlar jadvali</h2>
+  <table>
+    <thead>
+      <tr><th>O‘rin</th><th>O‘yinchi</th><th>Ochko</th></tr>
+    </thead>
+    <tbody id="leaders"></tbody>
+  </table>
+</section>
+
+<script>
+'use strict';
+
+const $ = id => document.getElementById(id);
+
+let current = null;
+let score = 0;
+let remaining = 100;
+let seconds = 60;
+let active = false;
+let timer = null;
+let round = 0;
+
+function readData(key, fallback) {
+  try {
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveData(key, data) {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function showAccount(message) {
+  $('accountMsg').textContent = message;
+}
+
+function account(mode) {
+  const name = $('username').value.trim();
+  const pass = $('password').value;
+
+  if (!/^[a-zA-Z0-9_]{3,18}$/.test(name)) {
+    showAccount('Ism 3–18 belgi bo‘lsin: harf, raqam yoki _.');
+    return;
+  }
+
+  if (pass.length < 4) {
+    showAccount('Parol kamida 4 ta belgidan iborat bo‘lsin.');
+    return;
+  }
+
+  const users = readData('star_game_users', {});
+
+  if (mode === 'register') {
+    if (users[name]) {
+      showAccount('Bu ism band. Boshqa ism tanla.');
+      return;
+    }
+
+    users[name] = { password: pass };
+
+    if (!saveData('star_game_users', users)) {
+      showAccount('Saqlab bo‘lmadi. Brauzer sozlamalarini tekshir.');
+      return;
+    }
+
+    showAccount('✅ Ro‘yxatdan o‘tish muvaffaqiyatli!');
+  } else {
+    if (!users[name] || users[name].password !== pass) {
+      showAccount('❌ Ism yoki parol noto‘g‘ri.');
+      return;
+    }
+
+    showAccount('✅ Akkauntga muvaffaqiyatli kirding!');
+  }
+
+  stopGame(false);
+  current = name;
+  $('player').textContent = name;
+  $('username').value = '';
+  $('password').value = '';
+  $('message').textContent = 'O‘yinni boshlashga tayyorsan!';
+}
+
+function logout() {
+  stopGame(false);
+  current = null;
+  $('player').textContent = 'Mehmon';
+  showAccount('Akkauntdan chiqding.');
+  $('message').textContent = 'O‘ynash uchun akkauntga kir.';
+}
+
+function renderLeaders() {
+  const records = readData('star_game_records', {});
+  const sorted = Object.entries(records)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 10);
+
+  const tbody = $('leaders');
+  tbody.replaceChildren();
+
+  if (!sorted.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 3;
+    td.textContent = 'Hali rekordlar yo‘q';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+
+  sorted.forEach(([name, points], index) => {
+    const tr = document.createElement('tr');
+    const medal = ['🥇', '🥈', '🥉'][index] || '';
+
+    [medal + ' ' + (index + 1), name, points].forEach(value => {
+      const td = document.createElement('td');
+      td.textContent = value;
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+}
+
+function showStar(gameRound) {
+  if (!active || gameRound !== round) return;
+
+  const star = document.createElement('button');
+  star.className = 'star';
+  star.type = 'button';
+  star.textContent = '⭐';
+  star.setAttribute('aria-label', 'Yulduzni tut');
+
+  // Yulduzning markazi maydon ichida tasodifiy joylashadi.
+  star.style.left = (6 + Math.random() * 88) + '%';
+  star.style.top = (8 + Math.random() * 82) + '%';
+
+  star.addEventListener('click', () => {
+    if (!active || gameRound !== round) return;
+
+    score++;
+    remaining--;
+
+    $('score').textContent = score;
+    $('left').textContent = remaining;
+
+    if (remaining <= 0) {
+      finishGame('🎉 Ajoyib! 100 ta yulduzning barchasini topding!');
+      return;
+    }
+
+    // Eski yulduz yo‘qoladi, keyingisi chiqadi.
+    star.remove();
+    showStar(gameRound);
+  }, { once: true });
+
+  $('game').replaceChildren(star);
+}
+
+function startGame() {
+  if (!current) {
+    $('message').textContent = 'Avval akkauntga kir!';
+    showAccount('O‘yin uchun akkauntga kirish kerak.');
+    return;
+  }
+
+  stopGame(false);
+  round++;
+
+  score = 0;
+  remaining = 100;
+  seconds = 60;
+  active = true;
+
+  $('score').textContent = score;
+  $('left').textContent = remaining;
+  $('time').textContent = seconds;
+  $('message').textContent = 'Yulduzlarni tez bos! Omad!';
+  $('startBtn').textContent = '🔄 Qayta boshlash';
+
+  showStar(round);
+
+  timer = setInterval(() => {
+    seconds--;
+    $('time').textContent = seconds;
+
+    if (seconds <= 0) {
+      finishGame('⏰ Vaqt tugadi! Natijang: ' + score + ' ochko.');
+    }
+  }, 1000);
+}
+
+function finishGame(message) {
+  if (!active) return;
+
+  active = false;
+  clearInterval(timer);
+  timer = null;
+  round++;
+
+  $('game').replaceChildren();
+  $('message').textContent = message;
+  $('startBtn').textContent = '🔄 Qayta o‘ynash';
+
+  const records = readData('star_game_records', {});
+  records[current] = Math.max(records[current] || 0, score);
+
+  if (!saveData('star_game_records', records)) {
+    $('message').textContent += ' Rekordni saqlashda xatolik!';
+  }
+
+  renderLeaders();
+}
+
+function stopGame(showMessage) {
+  active = false;
+  clearInterval(timer);
+  timer = null;
+  round++;
+  $('game').replaceChildren();
+
+  if (showMessage) {
+    $('message').textContent = 'O‘yin to‘xtatildi.';
+  }
+}
+
+$('registerBtn').addEventListener('click', () => account('register'));
+$('loginBtn').addEventListener('click', () => account('login'));
+$('logoutBtn').addEventListener('click', logout);
+$('startBtn').addEventListener('click', startGame);
+
+$('password').addEventListener('keydown', event => {
+  if (event.key === 'Enter') account('login');
+});
+
+renderLeaders();
+</script>
+</body>
+</html>
